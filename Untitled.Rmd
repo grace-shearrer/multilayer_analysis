@@ -1,0 +1,149 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(nlme)
+library(psych)
+library(vroom)
+library(dplyr)
+library(tidyverse)
+library(emmeans)
+```
+
+
+
+```{r}
+df<-vroom("~/Documents/BBC_21-2939_prepro_data/derivatives/output/total_entang.csv")
+dfQ<-vroom("~/Documents/BBC_21-2939_prepro_data/derivatives/output/total_Q.csv")
+dfDGR<-vroom("~/Documents/BBC_21-2939_prepro_data/derivatives/output/total_degree.csv")
+
+head(dfDGR)
+
+df$sub<-as.factor(df$sub)
+df$ROI<-as.factor(df$ROI)
+df$time<-as.factor(df$time)
+df$level<-factor(df$level, c('low','neu','high'))
+
+dfQ$level<-factor(dfQ$level, c('low','neu','high'))
+dfDGR$level<-factor(dfDGR$level, c('low','neu','high'))
+
+```
+
+
+
+
+Entaglement intensitiy is different per layer. With high has lower entanglement compared to neurtral and low
+```{r}
+m1<-lme(Entanglement_intensity~level, data=df, method ="REML", na.action=na.exclude, random = ~1|sub/time)
+summary(m1)
+m1.emm <- emmeans(m1, "level")
+pairs(m1.emm)
+eff_size(m1.emm, sigma = sigma(m2), edf = 1484)
+
+```
+
+
+```{r}
+m2<-lme(Layer_entanglement~level*ROI, data=df, method ="REML", na.action=na.exclude, random = ~1|sub/time)
+summary(m2)
+m2.emm <- emmeans(m2, c("level", "ROI"))
+
+joint_tests(m2, by = 'level')
+joint_tests(m2, by = c('ROI'))
+```
+
+```{r}
+emmip(m2, ROI ~ level)
+emmip(m2, level ~ ROI)
+```
+# Layer entanglement
+* The layer entanglement measures the “influence” of a layer in its neighbourhood.
+* The layer entanglement γl measures the share of layer l overlapping with other layers.
+
+Putamen layer entanglement changes by level. Entanglement is lowest in the neu period and highest in the high period (although not significantly different from low)
+```{r}
+m2.1<-lme(Layer_entanglement~ROI, data=df, method ="REML", na.action=na.exclude, random = ~1|sub/level/time)
+
+#m2, ROI ~ level
+emm_s.t <- emmeans(m2, pairwise ~ level | ROI)
+emm_s.t
+eff_size(emm_s.t, sigma = sigma(m2), edf = 1547)
+```
+
+```{r}
+#Layer_entanglement~ROI, data=df
+ggplot(df, aes(x=ROI, y=Layer_entanglement, fill = ROI)) + 
+  geom_violin(trim=FALSE)+ facet_wrap(~level, ncol = 3)
+```
+
+
+# Homogeneity
+* The more a group of layers interacts together, the more the nodes they connect will be cohesive in view of these layers, hence the more values will be similar (their share of entanglement will be similar). This is captured by the entanglement homogeneity.
+
+Homogeneity is the highest in the neutral and lower in high and low phases. Homogeneity is significantly different in the dlPFC in the neutral vs. high. 
+```{r}
+m3<-lme(Normalized_homogeneity~level*ROI, data=df, method ="REML", na.action=na.exclude, random = ~1|sub/time)
+summary(m3)
+m3.emm <- emmeans(m3, c("level", "ROI"))
+
+contrast(emmeans(m3, ~ level), "pairwise")
+joint_tests(m3, by = 'ROI')
+
+emm_3 <- emmeans(m3, pairwise ~ level | ROI)
+emm_3
+eff_size(emm_3, sigma = sigma(m2), edf = 1547)
+
+```
+```{r}
+emmip(m3, level ~ ROI)
+```
+
+
+# Modularity
+No difference in modularity between levels
+```{r}
+mQ1<-lme(Q~level, data=dfQ, method ="REML", na.action=na.exclude, random = ~1|sub)
+
+summary(mQ1)   
+mQ1.emm <- emmeans(mQ1, c("level"))
+contrast(emmeans(mQ1.emm, ~ level), "pairwise")
+```
+# Degree
+Neutral has a higher degree compared to high and low. 
+```{r}
+head(dfDGR)
+mD1<-lme(degree~level*i, data=dfDGR, method ="REML", na.action=na.exclude, random = ~i|sub)
+summary(mD1)
+mD1.emm <- emmeans(mD1, c("level","i"))
+contrast(emmeans(mD1.emm, ~ level*i), "pairwise")
+
+
+
+joint_tests(mD1, by = 'level')
+```
+
+```{r}
+emmip(mD1, i~level)
+
+ggplot(data = dfDGR, aes(x = i, y = degree)) + geom_line(aes(color =level), size = 1) 
+```
+('2759', 'dlPFC') occurs the most in the high group, and has the most frequency 
+('2400', 'dlPFC') 
+```{r}
+summary(dfDGR$i)
+mytable <- table(dfDGR$ROI,dfDGR$level) # A will be rows, B will be columns
+freqs<-as.data.frame(mytable)
+freqs
+importROI<-freqs %>% group_by(Var1) %>% summarise(Frequency = sum(Freq))
+max(importROI$Frequency)
+
+important<-subset(importROI, importROI$Frequency > 3)
+no0freq<-freqs[freqs$Freq != 0, ]
+no0freq$Var1
+no0freq[no0freq$Var1 == "('2759', 'dlPFC')", ]
+
+dfDGR[dfDGR$ROI == "('2759', 'dlPFC')", ]
+```
+
