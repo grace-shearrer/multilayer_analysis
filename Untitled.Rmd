@@ -25,9 +25,13 @@ df$sub<-as.factor(df$sub)
 df$ROI<-as.factor(df$ROI)
 df$time<-as.factor(df$time)
 df$level<-factor(df$level, c('low','neu','high'))
-
+levels(df$level) <- c(low  = "Decreasing Insulin", neu = "Baseline Insulin", high = "Increasing Insulin")
+df$level
 dfQ$level<-factor(dfQ$level, c('low','neu','high'))
+levels(dfQ$level) <- c(low  = "Decreasing Insulin", neu = "Baseline Insulin", high = "Increasing Insulin")
 dfDGR$level<-factor(dfDGR$level, c('low','neu','high'))
+levels(dfDGR$level) <- c(low  = "Decreasing Insulin", neu = "Baseline Insulin", high = "Increasing Insulin")
+
 
 ```
 
@@ -37,12 +41,24 @@ dfDGR$level<-factor(dfDGR$level, c('low','neu','high'))
 Entaglement intensitiy is different per layer. With high has lower entanglement compared to neurtral and low
 ```{r}
 m1<-lme(Entanglement_intensity~level, data=df, method ="REML", na.action=na.exclude, random = ~1|sub/time)
+m1.1<-lm(Entanglement_intensity~level, data=df, na.action=na.exclude)
+
 summary(m1)
+library(lm.beta)
+lm.beta(m1.1)
 m1.emm <- emmeans(m1, "level")
 pairs(m1.emm)
-eff_size(m1.emm, sigma = sigma(m2), edf = 1484)
+eff_size(m1.emm, sigma = sigma(m1), edf = 1484)
 
 ```
+
+
+```{r}
+ggplot(df, aes(x=level, y=Entanglement_intensity, fill = level)) + 
+  geom_violin(trim=FALSE) + geom_boxplot(width=0.1) + theme_classic() + 
+  xlab("Insulin action") + ylab("Entanglement intensity") 
+```
+
 
 
 ```{r}
@@ -55,8 +71,8 @@ joint_tests(m2, by = c('ROI'))
 ```
 
 ```{r}
-emmip(m2, ROI ~ level)
-emmip(m2, level ~ ROI)
+emmip(m2, ROI ~ level)+ theme_classic()+ 
+  xlab("Insulin action") + ylab("Linear prediction of layer entanglement") 
 ```
 # Layer entanglement
 * The layer entanglement measures the “influence” of a layer in its neighbourhood.
@@ -67,15 +83,23 @@ Putamen layer entanglement changes by level. Entanglement is lowest in the neu p
 m2.1<-lme(Layer_entanglement~ROI, data=df, method ="REML", na.action=na.exclude, random = ~1|sub/level/time)
 
 #m2, ROI ~ level
-emm_s.t <- emmeans(m2, pairwise ~ level | ROI)
+emm_s.t <- emmeans(m2, pairwise ~ ROI | level)
 emm_s.t
 eff_size(emm_s.t, sigma = sigma(m2), edf = 1547)
 ```
 
+
+
 ```{r}
 #Layer_entanglement~ROI, data=df
 ggplot(df, aes(x=ROI, y=Layer_entanglement, fill = ROI)) + 
-  geom_violin(trim=FALSE)+ facet_wrap(~level, ncol = 3)
+  geom_violin(trim=FALSE)+ facet_wrap(~level, ncol = 3) + theme_classic()
+
+pu_df<-subset(df, df$ROI == "Pu")
+pu_df$ROI<-as.factor(pu_df$ROI)
+ggplot(pu_df, aes(x=level, y=Layer_entanglement, fill = level)) + 
+  geom_violin(trim=FALSE)+ theme_classic()
+
 ```
 
 
@@ -88,16 +112,17 @@ m3<-lme(Normalized_homogeneity~level*ROI, data=df, method ="REML", na.action=na.
 summary(m3)
 m3.emm <- emmeans(m3, c("level", "ROI"))
 
-contrast(emmeans(m3, ~ level), "pairwise")
+contrast(emmeans(m3, ~ level | ROI), "pairwise")
 joint_tests(m3, by = 'ROI')
 
-emm_3 <- emmeans(m3, pairwise ~ level | ROI)
+emm_3 <- emmeans(m3, pairwise ~ ROI | level)
 emm_3
 eff_size(emm_3, sigma = sigma(m2), edf = 1547)
 
 ```
 ```{r}
-emmip(m3, level ~ ROI)
+emmip(m3, ROI ~ level) + theme_classic()+ 
+  xlab("Insulin action") + ylab("Linear prediction of homogeniety")
 ```
 
 
@@ -145,5 +170,12 @@ no0freq$Var1
 no0freq[no0freq$Var1 == "('2759', 'dlPFC')", ]
 
 dfDGR[dfDGR$ROI == "('2759', 'dlPFC')", ]
+```
+
+
+```{r}
+#save.image(file = "~/Documents/BBC_21-2939_prepro_data/derivatives/output/TOSanalysis.RData")
+#load(file = "~/University of Wyoming/M2AENAD Lab - Documents/RESEARCH/SPROUTS-PEAS/Stress_EC/data/gracedat.Rdata")
+
 ```
 
